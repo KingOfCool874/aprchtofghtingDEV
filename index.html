@@ -138,6 +138,10 @@
     let secretCode = "";
     let devMenuOpen = false;
 
+    // Base engine values inherited by splits
+    let baseFireRate = 10;
+    let baseSpeed = 5;
+
     const questions = [
         { q: "Who served as the U.S. Secretary of Defense and was known as the chief architect of the Vietnam War?", answers: ["Dean Rusk", "Robert McNamara", "William Westmoreland"], correct: 1 },
         { q: "What is the theoretical 'Crossover Point'?", answers: ["When the U.S. drops below 50% public support.", "When enemy forces seize and hold territory.", "When enemy casualties exceed their ability to replace fallen soldiers."], correct: 2 },
@@ -149,7 +153,11 @@
     let currentQuestionObj = null;
     let crate = null; 
 
-    const player = { x: canvas.width / 2, y: canvas.height / 2, radius: 20, speed: 5, color: '#00e5ff', cooldown: 0, fireRate: 10 };
+    // Replaced single player object with an array to support Agar.io style splits
+    let playerPieces = [
+        { x: canvas.width / 2, y: canvas.height / 2, radius: 24, speed: baseSpeed, color: '#00e5ff', cooldown: 0, fireRate: baseFireRate, vx: 0, vy: 0, mergeTimer: 0 }
+    ];
+
     const bullets = [];
     const enemies = [];
     const particles = [];
@@ -157,14 +165,19 @@
     window.addEventListener('keydown', e => {
         keys[e.key.toLowerCase()] = true;
 
+        // Agar.io Splitting Code (Limits max active parts to 8)
+        if (e.key === ' ' && !isPaused && !isGameOver) {
+            splitPlayer();
+        }
+
         // DEV MENU LOGIC
         secretCode += e.key;
         if (secretCode.length > 4) {
-            secretCode = secretCode.substring(1); // Keep only the last 4 key presses
+            secretCode = secretCode.substring(1);
         }
         if (secretCode === "4175") {
             toggleDevMenu();
-            secretCode = ""; // Reset code after triggering
+            secretCode = ""; 
         }
     });
 
@@ -174,17 +187,52 @@
     window.addEventListener('mouseup', () => mouse.isDown = false);
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 
+    // Agar.io Split Action Execution
+    function splitPlayer() {
+        if (playerPieces.length >= 8) return;
+        let newPieces = [];
+
+        playerPieces.forEach(p => {
+            // Only split if cell has enough mass (radius)
+            if (p.radius >= 14 && playerPieces.length + newPieces.length < 8) {
+                let oldR = p.radius;
+                // Halve the mass/area using geometry formula (r_new = r * 0.707)
+                p.radius = oldR * 0.7071;
+
+                let angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
+                let launchForce = 16;
+
+                newPieces.push({
+                    x: p.x,
+                    y: p.y,
+                    radius: oldR * 0.7071,
+                    speed: baseSpeed,
+                    color: p.color,
+                    cooldown: p.cooldown,
+                    fireRate: baseFireRate,
+                    vx: Math.cos(angle) * launchForce,
+                    vy: Math.sin(angle) * launchForce,
+                    mergeTimer: 300 // 5-second cooldown timeline before merge is possible
+                });
+
+                p.mergeTimer = 300;
+            }
+        });
+        playerPieces = playerPieces.concat(newPieces);
+    }
+
     // DEV MENU FUNCTIONS
     window.toggleDevMenu = function() {
-        if (isGameOver) return; // Don't open if game is already over
+        if (isGameOver) return; 
         devMenuOpen = !devMenuOpen;
-        isPaused = devMenuOpen; // Pause game logic
+        isPaused = devMenuOpen; 
         document.getElementById('dev-menu').style.display = devMenuOpen ? 'block' : 'none';
     };
 
     window.devGodGuns = function() {
-        player.fireRate = 1; // Machine gun speed
-        player.speed = 10;   // Zoom zoom
+        baseFireRate = 1;
+        baseSpeed = 9;
+        playerPieces.forEach(p => { p.fireRate = 1; p.speed = 9; });
         toggleDevMenu();
     };
 
@@ -198,7 +246,6 @@
         crossoverPoint = 100;
         updateUI();
         toggleDevMenu();
-        // The game loop will catch this and trigger the win screen immediately
     };
 
     setInterval(() => {
@@ -212,7 +259,8 @@
         if (timeRemaining === 80) {
             phase = 2;
             document.getElementById('phase-text').innerText = "Phase 2: Westmoreland's Attrition. Troops scaling to 500,000.";
-            player.fireRate = 5; 
+            baseFireRate = 5;
+            playerPieces.forEach(p => p.fireRate = 5);
             enemySpawnRate = 8; 
         } else if (timeRemaining === 40) {
             phase = 3;
@@ -236,11 +284,13 @@
     }
 
     function shoot() {
-        if (player.cooldown <= 0) {
-            let angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-            bullets.push({ x: player.x, y: player.y, radius: 4, speed: 15, dx: Math.cos(angle), dy: Math.sin(angle), life: 100 });
-            player.cooldown = player.fireRate;
-        }
+        playerPieces.forEach(p => {
+            if (p.cooldown <= 0) {
+                let angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
+                bullets.push({ x: p.x, y: p.y, radius: 4, speed: 15, dx: Math.cos(angle), dy: Math.sin(angle), life: 100 });
+                p.cooldown = p.fireRate;
+            }
+        });
     }
 
     function spawnEnemy() {
@@ -307,15 +357,18 @@
             isPaused = false;
             
             if (isCorrect) {
-                for(let i=0; i < 36; i++) {
-                    let angle = i * 10 * (Math.PI/180);
-                    bullets.push({ x: player.x, y: player.y, radius: 8, speed: 10, dx: Math.cos(angle), dy: Math.sin(angle), life: 200 });
-                }
+                // Modified to run multi-cell explosions across all separated split nodes
+                playerPieces.forEach(p => {
+                    for(let i=0; i < 36; i++) {
+                        let angle = i * 10 * (Math.PI/180);
+                        bullets.push({ x: p.x, y: p.y, radius: 8, speed: 10, dx: Math.cos(angle), dy: Math.sin(angle), life: 200 });
+                    }
+                });
                 crossoverPoint += 10; 
             } else {
                 publicSupport -= 30; 
                 updateUI();
-                createExplosion(player.x, player.y, '#f44336');
+                playerPieces.forEach(p => createExplosion(p.x, p.y, '#f44336'));
                 if (publicSupport <= 0) endGame("Public Support Collapsed", "Bad intel and massive casualties caused the U.S. to greatly lose support for the war.");
             }
             crate = null;
@@ -331,7 +384,6 @@
     function gameLoop() {
         if (isGameOver) return;
 
-        // Catch win condition natively so dev menu trigger works instantly
         if (crossoverPoint >= 100) {
             endGame("Pyrrhic Victory", "You reached the Crossover Point, but at what cost? The massive amount of casualties caused the public to condemn the U.S. and greatly lose support for the war.");
             return;
@@ -342,13 +394,72 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             frameCount++;
 
-            if (keys['w'] && player.y > player.radius) player.y -= player.speed;
-            if (keys['s'] && player.y < canvas.height - player.radius) player.y += player.speed;
-            if (keys['a'] && player.x > player.radius) player.x -= player.speed;
-            if (keys['d'] && player.x < canvas.width - player.radius) player.x += player.speed;
+            // Integrated Directional Vector Mapping for both WASD and Keyboard Arrow Keys
+            let moveX = 0;
+            let moveY = 0;
+            if (keys['w'] || keys['arrowup']) moveY -= 1;
+            if (keys['s'] || keys['arrowdown']) moveY += 1;
+            if (keys['a'] || keys['arrowleft']) moveX -= 1;
+            if (keys['d'] || keys['arrowright']) moveX += 1;
+
+            // Normalize vector velocity so diagonal travel isn't faster
+            if (moveX !== 0 && moveY !== 0) {
+                moveX *= 0.7071;
+                moveY *= 0.7071;
+            }
+
+            // Update Merge Cooldown Timers
+            playerPieces.forEach(p => {
+                if (p.mergeTimer > 0) p.mergeTimer--;
+            });
+
+            // Agar.io cell-to-cell interaction mapping loop
+            for (let i = 0; i < playerPieces.length; i++) {
+                for (let j = i + 1; j < playerPieces.length; j++) {
+                    let p1 = playerPieces[i];
+                    let p2 = playerPieces[j];
+                    let dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                    let minDist = p1.radius + p2.radius;
+
+                    if (dist < minDist) {
+                        // Recombination step if split timers have hit zero
+                        if (p1.mergeTimer === 0 && p2.mergeTimer === 0) {
+                            p1.radius = Math.sqrt(p1.radius * p1.radius + p2.radius * p2.radius);
+                            playerPieces.splice(j, 1);
+                            j--;
+                        } else {
+                            // Fluid cell collision physics to push cells apart while unmerged
+                            let overlap = minDist - dist;
+                            let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                            p1.x -= Math.cos(angle) * overlap * 0.5;
+                            p1.y -= Math.sin(angle) * overlap * 0.5;
+                            p2.x += Math.cos(angle) * overlap * 0.5;
+                            p2.y += Math.sin(angle) * overlap * 0.5;
+                        }
+                    }
+                }
+            }
+
+            // Apply movement matrix & decay split launch physics velocity friction
+            playerPieces.forEach(p => {
+                p.x += moveX * p.speed + p.vx;
+                p.y += moveY * p.speed + p.vy;
+
+                p.vx *= 0.90; // Dampen launch friction properties
+                p.vy *= 0.90;
+                if (Math.abs(p.vx) < 0.1) p.vx = 0;
+                if (Math.abs(p.vy) < 0.1) p.vy = 0;
+
+                // Restrict cells to active display boundaries
+                if (p.x < p.radius) p.x = p.radius;
+                if (p.x > canvas.width - p.radius) p.x = canvas.width - p.radius;
+                if (p.y < p.radius) p.y = p.radius;
+                if (p.y > canvas.height - p.radius) p.y = canvas.height - p.radius;
+
+                if (p.cooldown > 0) p.cooldown--;
+            });
 
             if (mouse.isDown) shoot();
-            if (player.cooldown > 0) player.cooldown--;
 
             if (crate) {
                 ctx.fillStyle = '#ffeb3b';
@@ -356,21 +467,28 @@
                 ctx.fillStyle = '#000';
                 ctx.fillText("?", crate.x - 4, crate.y + 5);
                 
-                if (Math.hypot(player.x - crate.x, player.y - crate.y) < player.radius + 15) {
-                    triggerTrivia();
+                // Crate collection works with any active sub-cell
+                for (let p of playerPieces) {
+                    if (Math.hypot(p.x - crate.x, p.y - crate.y) < p.radius + 15) {
+                        triggerTrivia();
+                        break;
+                    }
                 }
             }
 
-            ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-            ctx.fillStyle = player.color; ctx.fill(); ctx.closePath();
+            // Render all active cells
+            playerPieces.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fillStyle = p.color; ctx.fill(); ctx.closePath();
 
-            ctx.beginPath();
-            ctx.moveTo(player.x, player.y);
-            ctx.lineTo(player.x + Math.cos(Math.atan2(mouse.y - player.y, mouse.x - player.x)) * 40, 
-                       player.y + Math.sin(Math.atan2(mouse.y - player.y, mouse.x - player.x)) * 40);
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-            ctx.lineWidth = 2;
-            ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x + Math.cos(Math.atan2(mouse.y - p.y, mouse.x - p.x)) * 40, 
+                           p.y + Math.sin(Math.atan2(mouse.y - p.y, mouse.x - p.x)) * 40);
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
 
             for (let i = bullets.length - 1; i >= 0; i--) {
                 let b = bullets[i];
@@ -384,20 +502,38 @@
 
             for (let i = enemies.length - 1; i >= 0; i--) {
                 let e = enemies[i];
-                let angle = Math.atan2(player.y - e.y, player.x - e.x);
+                
+                // Target the closest cell piece
+                let target = playerPieces[0];
+                let minDist = Infinity;
+                playerPieces.forEach(p => {
+                    let d = Math.hypot(p.x - e.x, p.y - e.y);
+                    if (d < minDist) {
+                        minDist = d;
+                        target = p;
+                    }
+                });
+
+                let angle = Math.atan2(target.y - e.y, target.x - e.x);
                 e.x += Math.cos(angle) * e.speed; e.y += Math.sin(angle) * e.speed;
 
                 ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
                 ctx.fillStyle = '#f44336'; ctx.fill();
 
-                let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
-                if (distToPlayer - player.radius - e.radius < 0) {
-                    publicSupport -= 3.5; 
-                    createExplosion(e.x, e.y, '#f44336');
-                    enemies.splice(i, 1); updateUI();
-                    if (publicSupport <= 0) endGame("Public Support Collapsed", "The massive amount of casualties caused the U.S. to greatly lose support for the war.");
-                    continue;
+                let enemyRemoved = false;
+                for (let p of playerPieces) {
+                    let distToPlayer = Math.hypot(p.x - e.x, p.y - e.y);
+                    if (distToPlayer - p.radius - e.radius < 0) {
+                        publicSupport -= 3.5; 
+                        createExplosion(e.x, e.y, '#f44336');
+                        enemies.splice(i, 1); updateUI();
+                        if (publicSupport <= 0) endGame("Public Support Collapsed", "The massive amount of casualties caused the U.S. to greatly lose support for the war.");
+                        enemyRemoved = true;
+                        break;
+                    }
                 }
+
+                if (enemyRemoved) continue;
 
                 for (let j = bullets.length - 1; j >= 0; j--) {
                     let b = bullets[j];

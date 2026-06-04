@@ -56,6 +56,11 @@
             transition: transform 0.1s;
         }
         button.action-btn:active { transform: scale(0.95); }
+
+        /* Dev Menu Specific Styles */
+        #dev-menu { border-color: #e040fb; width: 400px; }
+        #dev-menu h2 { color: #e040fb; margin-bottom: 20px; font-size: 2rem; }
+        #dev-menu .ans-btn:hover { border-color: #e040fb; }
     </style>
 </head>
 <body>
@@ -66,14 +71,14 @@
     <div class="hud-top">
         <div class="stat-box">
             <div id="timer">2:00</div>
-            <div id="phase-text">Phase 1: Stop the Domino Theory. Prevent the spread.[cite: 1]</div>
+            <div id="phase-text">Phase 1: Stop the Domino Theory. Prevent the spread.</div>
         </div>
         
         <div class="crossover-container stat-box">
             <h3>The "Crossover Point"</h3>
             <div class="bar-bg">
                 <div class="bar-fill" id="crossover-fill"></div>
-                <div class="bar-text">Casualties vs Replacement Rate[cite: 1]</div>
+                <div class="bar-text">Casualties vs Replacement Rate</div>
             </div>
         </div>
 
@@ -103,6 +108,14 @@
     <button class="action-btn" onclick="location.reload()">Re-Deploy</button>
 </div>
 
+<div id="dev-menu" class="modal">
+    <h2>DEV MENU</h2>
+    <button class="ans-btn" onclick="devGodGuns()">Enable God Guns</button>
+    <button class="ans-btn" onclick="devMaxSupport()">Max Public Support</button>
+    <button class="ans-btn" onclick="devTriggerCrossover()">Trigger Crossover (Win)</button>
+    <button class="action-btn" style="background:#e040fb; color:white; margin-top:15px; width:100%;" onclick="toggleDevMenu()">Resume Game</button>
+</div>
+
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -118,16 +131,20 @@
     let publicSupport = 100;
     let crossoverPoint = 0; 
     let phase = 1;
-    let enemySpawnRate = 25; // Brutal start
+    let enemySpawnRate = 25; 
     let frameCount = 0;
 
+    // Secret code tracker
+    let secretCode = "";
+    let devMenuOpen = false;
+
     const questions = [
-        { q: "Who served as the U.S. Secretary of Defense and was known as the chief architect of the Vietnam War?[cite: 1]", answers: ["Dean Rusk", "Robert McNamara", "William Westmoreland"], correct: 1 },
-        { q: "What is the theoretical 'Crossover Point'?[cite: 1]", answers: ["When the U.S. drops below 50% public support.", "When enemy forces seize and hold territory.", "When enemy casualties exceed their ability to replace fallen soldiers."], correct: 2 },
-        { q: "Instead of holding territory, General Westmoreland's strategy of attrition aimed to do what?[cite: 1]", answers: ["Wear down the enemy through continuous losses.", "Limit Soviet influence in neighboring regions.", "Provide aid to the Army of the Republic of Vietnam."], correct: 0 },
-        { q: "What was the 'Domino Theory'?[cite: 1]", answers: ["The strategy to bomb targets in a straight line.", "The idea that if one country fell to communism, surrounding countries would also fall.", "The plan to replace U.S. troops with South Vietnamese troops."], correct: 1 },
-        { q: "Which of the following was a primary reason the U.S. went to war in Vietnam?[cite: 1]", answers: ["The Gulf of Tonkin incident", "To overthrow the Soviet Union directly", "To seize control of local agriculture"], correct: 0 },
-        { q: "Who was the Army of the Republic of Vietnam (ARVN)?[cite: 1]", answers: ["The North Vietnamese regular army", "The fighting force of the South Vietnamese people", "A U.S. special operations group"], correct: 1 }
+        { q: "Who served as the U.S. Secretary of Defense and was known as the chief architect of the Vietnam War?", answers: ["Dean Rusk", "Robert McNamara", "William Westmoreland"], correct: 1 },
+        { q: "What is the theoretical 'Crossover Point'?", answers: ["When the U.S. drops below 50% public support.", "When enemy forces seize and hold territory.", "When enemy casualties exceed their ability to replace fallen soldiers."], correct: 2 },
+        { q: "Instead of holding territory, General Westmoreland's strategy of attrition aimed to do what?", answers: ["Wear down the enemy through continuous losses.", "Limit Soviet influence in neighboring regions.", "Provide aid to the Army of the Republic of Vietnam."], correct: 0 },
+        { q: "What was the 'Domino Theory'?", answers: ["The strategy to bomb targets in a straight line.", "The idea that if one country fell to communism, surrounding countries would also fall.", "The plan to replace U.S. troops with South Vietnamese troops."], correct: 1 },
+        { q: "Which of the following was a primary reason the U.S. went to war in Vietnam?", answers: ["The Gulf of Tonkin incident", "To overthrow the Soviet Union directly", "To seize control of local agriculture"], correct: 0 },
+        { q: "Who was the Army of the Republic of Vietnam (ARVN)?", answers: ["The North Vietnamese regular army", "The fighting force of the South Vietnamese people", "A U.S. special operations group"], correct: 1 }
     ];
     let currentQuestionObj = null;
     let crate = null; 
@@ -137,37 +154,76 @@
     const enemies = [];
     const particles = [];
 
-    window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+    window.addEventListener('keydown', e => {
+        keys[e.key.toLowerCase()] = true;
+
+        // DEV MENU LOGIC
+        secretCode += e.key;
+        if (secretCode.length > 4) {
+            secretCode = secretCode.substring(1); // Keep only the last 4 key presses
+        }
+        if (secretCode === "4175") {
+            toggleDevMenu();
+            secretCode = ""; // Reset code after triggering
+        }
+    });
+
     window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
     window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
     window.addEventListener('mousedown', () => mouse.isDown = true);
     window.addEventListener('mouseup', () => mouse.isDown = false);
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 
+    // DEV MENU FUNCTIONS
+    window.toggleDevMenu = function() {
+        if (isGameOver) return; // Don't open if game is already over
+        devMenuOpen = !devMenuOpen;
+        isPaused = devMenuOpen; // Pause game logic
+        document.getElementById('dev-menu').style.display = devMenuOpen ? 'block' : 'none';
+    };
+
+    window.devGodGuns = function() {
+        player.fireRate = 1; // Machine gun speed
+        player.speed = 10;   // Zoom zoom
+        toggleDevMenu();
+    };
+
+    window.devMaxSupport = function() {
+        publicSupport = 999;
+        updateUI();
+        toggleDevMenu();
+    };
+
+    window.devTriggerCrossover = function() {
+        crossoverPoint = 100;
+        updateUI();
+        toggleDevMenu();
+        // The game loop will catch this and trigger the win screen immediately
+    };
+
     setInterval(() => {
         if(isGameOver || isPaused) return;
         timeRemaining--;
         updateUI();
         
-        // Massive passive drain to simulate enemy replacement rate[cite: 1]
         let replacementRate = phase === 3 ? 8 : 4; 
         crossoverPoint = Math.max(0, crossoverPoint - replacementRate);
 
         if (timeRemaining === 80) {
             phase = 2;
-            document.getElementById('phase-text').innerText = "Phase 2: Westmoreland's Attrition. Troops scaling to 500,000.[cite: 1]";
+            document.getElementById('phase-text').innerText = "Phase 2: Westmoreland's Attrition. Troops scaling to 500,000.";
             player.fireRate = 5; 
-            enemySpawnRate = 8; // Heavy Swarm
+            enemySpawnRate = 8; 
         } else if (timeRemaining === 40) {
             phase = 3;
-            document.getElementById('phase-text').innerText = "Phase 3: The Tet Offensive! They are accepting massive casualties![cite: 1]";
-            enemySpawnRate = 2; // Mathematically impossible bullet hell
+            document.getElementById('phase-text').innerText = "Phase 3: The Tet Offensive! They are accepting massive casualties!";
+            enemySpawnRate = 2; 
             document.getElementById('phase-text').style.color = "#f44336";
         }
 
         if ([100, 80, 60, 40, 20].includes(timeRemaining)) spawnCrate();
 
-        if (timeRemaining <= 0) endGame("Costly Stalemate", "Time expired. The strategy of attrition resulted in a costly stalemate. The U.S. greatly lost support for the war.[cite: 1]");
+        if (timeRemaining <= 0) endGame("Costly Stalemate", "Time expired. The strategy of attrition resulted in a costly stalemate. The U.S. greatly lost support for the war.");
     }, 1000);
 
     function updateUI() {
@@ -194,7 +250,6 @@
         else if (side === 2) { ex = Math.random() * canvas.width; ey = canvas.height + 30; } 
         else { ex = -30; ey = Math.random() * canvas.height; }
         
-        // Enemy HP increases drastically per phase
         let hpVal = 1;
         if (phase === 2) hpVal = 2;
         if (phase === 3) hpVal = 4;
@@ -256,12 +311,12 @@
                     let angle = i * 10 * (Math.PI/180);
                     bullets.push({ x: player.x, y: player.y, radius: 8, speed: 10, dx: Math.cos(angle), dy: Math.sin(angle), life: 200 });
                 }
-                crossoverPoint += 10; // Reduced reward
+                crossoverPoint += 10; 
             } else {
-                publicSupport -= 30; // Brutal penalty
+                publicSupport -= 30; 
                 updateUI();
                 createExplosion(player.x, player.y, '#f44336');
-                if (publicSupport <= 0) endGame("Public Support Collapsed", "Bad intel and massive casualties caused the U.S. to greatly lose support for the war.[cite: 1]");
+                if (publicSupport <= 0) endGame("Public Support Collapsed", "Bad intel and massive casualties caused the U.S. to greatly lose support for the war.");
             }
             crate = null;
         }, 2000);
@@ -275,6 +330,13 @@
 
     function gameLoop() {
         if (isGameOver) return;
+
+        // Catch win condition natively so dev menu trigger works instantly
+        if (crossoverPoint >= 100) {
+            endGame("Pyrrhic Victory", "You reached the Crossover Point, but at what cost? The massive amount of casualties caused the public to condemn the U.S. and greatly lose support for the war.");
+            return;
+        }
+
         if (!isPaused) {
             ctx.fillStyle = 'rgba(17, 17, 17, 0.4)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -330,10 +392,10 @@
 
                 let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
                 if (distToPlayer - player.radius - e.radius < 0) {
-                    publicSupport -= 3.5; // Instant severe penalty
+                    publicSupport -= 3.5; 
                     createExplosion(e.x, e.y, '#f44336');
                     enemies.splice(i, 1); updateUI();
-                    if (publicSupport <= 0) endGame("Public Support Collapsed", "The massive amount of casualties caused the U.S. to greatly lose support for the war.[cite: 1]");
+                    if (publicSupport <= 0) endGame("Public Support Collapsed", "The massive amount of casualties caused the U.S. to greatly lose support for the war.");
                     continue;
                 }
 
@@ -344,10 +406,8 @@
                         e.hp--; bullets.splice(j, 1);
                         if (e.hp <= 0) {
                             createExplosion(e.x, e.y, '#ff9800');
-                            crossoverPoint += 0.5; // Very slow gain
+                            crossoverPoint += 0.5; 
                             enemies.splice(i, 1); updateUI();
-                            
-                            if(crossoverPoint >= 100) endGame("Pyrrhic Victory", "You reached the Crossover Point, but at what cost? The massive amount of casualties caused the public to condemn the U.S. and greatly lose support for the war.[cite: 1]");
                             break;
                         }
                     }

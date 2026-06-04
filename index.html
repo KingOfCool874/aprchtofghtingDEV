@@ -25,7 +25,6 @@
         
         #support { color: #4caf50; font-size: 1.5rem; }
         
-        /* Modal for Game Over & Trivia */
         .modal {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(0,0,0,0.95); padding: 40px; border: 4px solid #fff;
@@ -34,7 +33,6 @@
         #game-over h1 { font-size: 3rem; margin-bottom: 20px; }
         #game-over p { font-size: 1.2rem; max-width: 500px; margin-bottom: 30px; line-height: 1.5; }
         
-        /* Trivia UI */
         #trivia-ui { border-color: #00e5ff; width: 600px; min-height: 350px; }
         #trivia-ui h2 { color: #ffeb3b; margin-bottom: 5px; font-size: 2rem; }
         .stakes { color: #aaa; font-size: 1rem; margin-bottom: 20px; font-weight: bold; border-bottom: 1px solid #444; padding-bottom: 15px;}
@@ -88,7 +86,7 @@
 
 <div id="trivia-ui" class="modal">
     <h2>INTEL DROP</h2>
-    <div class="stakes">Reward: <span class="good">360° Nova Blast</span> | Penalty: <span class="bad">-20% Public Support</span></div>
+    <div class="stakes">Reward: <span class="good">360° Nova Blast</span> | Penalty: <span class="bad">-30% Public Support</span></div>
     
     <div id="question-text">Question goes here?</div>
     <button class="ans-btn" onclick="answerTrivia(0)" id="ans0">Answer 1</button>
@@ -120,40 +118,16 @@
     let publicSupport = 100;
     let crossoverPoint = 0; 
     let phase = 1;
-    let enemySpawnRate = 45; // Starts faster
+    let enemySpawnRate = 25; // Brutal start
     let frameCount = 0;
 
     const questions = [
-        {
-            q: "Who served as the U.S. Secretary of Defense and was known as the chief architect of the Vietnam War?[cite: 1]",
-            answers: ["Dean Rusk", "Robert McNamara", "William Westmoreland"],
-            correct: 1
-        },
-        {
-            q: "What is the theoretical 'Crossover Point'?[cite: 1]",
-            answers: ["When the U.S. drops below 50% public support.", "When enemy forces seize and hold territory.", "When enemy casualties exceed their ability to replace fallen soldiers."],
-            correct: 2
-        },
-        {
-            q: "Instead of holding territory, General Westmoreland's strategy of attrition aimed to do what?[cite: 1]",
-            answers: ["Wear down the enemy through continuous losses.", "Limit Soviet influence in neighboring regions.", "Provide aid to the Army of the Republic of Vietnam."],
-            correct: 0
-        },
-        {
-            q: "What was the 'Domino Theory'?[cite: 1]",
-            answers: ["The strategy to bomb targets in a straight line.", "The idea that if one country fell to communism, surrounding countries would also fall.", "The plan to replace U.S. troops with South Vietnamese troops."],
-            correct: 1
-        },
-        {
-            q: "Which of the following was a primary reason the U.S. went to war in Vietnam?[cite: 1]",
-            answers: ["The Gulf of Tonkin incident", "To overthrow the Soviet Union directly", "To seize control of local agriculture"],
-            correct: 0
-        },
-        {
-            q: "Who was the Army of the Republic of Vietnam (ARVN)?[cite: 1]",
-            answers: ["The North Vietnamese regular army", "The fighting force of the South Vietnamese people", "A U.S. special operations group"],
-            correct: 1
-        }
+        { q: "Who served as the U.S. Secretary of Defense and was known as the chief architect of the Vietnam War?[cite: 1]", answers: ["Dean Rusk", "Robert McNamara", "William Westmoreland"], correct: 1 },
+        { q: "What is the theoretical 'Crossover Point'?[cite: 1]", answers: ["When the U.S. drops below 50% public support.", "When enemy forces seize and hold territory.", "When enemy casualties exceed their ability to replace fallen soldiers."], correct: 2 },
+        { q: "Instead of holding territory, General Westmoreland's strategy of attrition aimed to do what?[cite: 1]", answers: ["Wear down the enemy through continuous losses.", "Limit Soviet influence in neighboring regions.", "Provide aid to the Army of the Republic of Vietnam."], correct: 0 },
+        { q: "What was the 'Domino Theory'?[cite: 1]", answers: ["The strategy to bomb targets in a straight line.", "The idea that if one country fell to communism, surrounding countries would also fall.", "The plan to replace U.S. troops with South Vietnamese troops."], correct: 1 },
+        { q: "Which of the following was a primary reason the U.S. went to war in Vietnam?[cite: 1]", answers: ["The Gulf of Tonkin incident", "To overthrow the Soviet Union directly", "To seize control of local agriculture"], correct: 0 },
+        { q: "Who was the Army of the Republic of Vietnam (ARVN)?[cite: 1]", answers: ["The North Vietnamese regular army", "The fighting force of the South Vietnamese people", "A U.S. special operations group"], correct: 1 }
     ];
     let currentQuestionObj = null;
     let crate = null; 
@@ -175,18 +149,19 @@
         timeRemaining--;
         updateUI();
         
-        // Brutal Attrition drain: The enemy replaces troops aggressively[cite: 1]
-        let replacementRate = phase === 3 ? 6 : 3; 
+        // Massive passive drain to simulate enemy replacement rate[cite: 1]
+        let replacementRate = phase === 3 ? 8 : 4; 
         crossoverPoint = Math.max(0, crossoverPoint - replacementRate);
 
         if (timeRemaining === 80) {
             phase = 2;
             document.getElementById('phase-text').innerText = "Phase 2: Westmoreland's Attrition. Troops scaling to 500,000.[cite: 1]";
-            player.fireRate = 5; enemySpawnRate = 12; // Swarms increase drastically
+            player.fireRate = 5; 
+            enemySpawnRate = 8; // Heavy Swarm
         } else if (timeRemaining === 40) {
             phase = 3;
             document.getElementById('phase-text').innerText = "Phase 3: The Tet Offensive! They are accepting massive casualties![cite: 1]";
-            enemySpawnRate = 3; // Absolute bullet hell
+            enemySpawnRate = 2; // Mathematically impossible bullet hell
             document.getElementById('phase-text').style.color = "#f44336";
         }
 
@@ -198,7 +173,7 @@
     function updateUI() {
         let m = Math.floor(timeRemaining / 60); let s = timeRemaining % 60;
         document.getElementById('timer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
-        document.getElementById('support').innerText = `Public Support: ${Math.floor(publicSupport)}%`;
+        document.getElementById('support').innerText = `Public Support: ${Math.max(0, Math.floor(publicSupport))}%`;
         document.getElementById('crossover-fill').style.width = `${Math.min(100, crossoverPoint)}%`;
         let supportEl = document.getElementById('support');
         supportEl.style.color = publicSupport < 30 ? '#f44336' : '#4caf50';
@@ -219,8 +194,12 @@
         else if (side === 2) { ex = Math.random() * canvas.width; ey = canvas.height + 30; } 
         else { ex = -30; ey = Math.random() * canvas.height; }
         
-        // Enemies are faster and take 3 hits in Phase 3
-        enemies.push({ x: ex, y: ey, radius: 12, speed: Math.random() * 2 + 1.5, hp: phase === 3 ? 3 : 1 });
+        // Enemy HP increases drastically per phase
+        let hpVal = 1;
+        if (phase === 2) hpVal = 2;
+        if (phase === 3) hpVal = 4;
+
+        enemies.push({ x: ex, y: ey, radius: 12, speed: Math.random() * 2 + 1.8, hp: hpVal });
     }
 
     function spawnCrate() {
@@ -265,7 +244,7 @@
         } else {
             resultEl.style.color = '#f44336';
             resultEl.innerText = "WRONG!";
-            descEl.innerText = "Bad Intel! You lost 20% Public Support.";
+            descEl.innerText = "Bad Intel! You lost 30% Public Support.";
         }
 
         setTimeout(() => {
@@ -277,9 +256,9 @@
                     let angle = i * 10 * (Math.PI/180);
                     bullets.push({ x: player.x, y: player.y, radius: 8, speed: 10, dx: Math.cos(angle), dy: Math.sin(angle), life: 200 });
                 }
-                crossoverPoint += 15; 
+                crossoverPoint += 10; // Reduced reward
             } else {
-                publicSupport -= 20;
+                publicSupport -= 30; // Brutal penalty
                 updateUI();
                 createExplosion(player.x, player.y, '#f44336');
                 if (publicSupport <= 0) endGame("Public Support Collapsed", "Bad intel and massive casualties caused the U.S. to greatly lose support for the war.[cite: 1]");
@@ -351,7 +330,7 @@
 
                 let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
                 if (distToPlayer - player.radius - e.radius < 0) {
-                    publicSupport -= 1.5; // Harsher penalty
+                    publicSupport -= 3.5; // Instant severe penalty
                     createExplosion(e.x, e.y, '#f44336');
                     enemies.splice(i, 1); updateUI();
                     if (publicSupport <= 0) endGame("Public Support Collapsed", "The massive amount of casualties caused the U.S. to greatly lose support for the war.[cite: 1]");
@@ -365,9 +344,9 @@
                         e.hp--; bullets.splice(j, 1);
                         if (e.hp <= 0) {
                             createExplosion(e.x, e.y, '#ff9800');
-                            crossoverPoint += 1.5; enemies.splice(i, 1); updateUI();
+                            crossoverPoint += 0.5; // Very slow gain
+                            enemies.splice(i, 1); updateUI();
                             
-                            // The Pyrrhic Victory condition 
                             if(crossoverPoint >= 100) endGame("Pyrrhic Victory", "You reached the Crossover Point, but at what cost? The massive amount of casualties caused the public to condemn the U.S. and greatly lose support for the war.[cite: 1]");
                             break;
                         }
@@ -392,11 +371,10 @@
         document.getElementById('end-title').innerText = title;
         document.getElementById('end-desc').innerText = desc;
         
-        // Colorize the ending title appropriately
         if(title === "Pyrrhic Victory") {
-            document.getElementById('end-title').style.color = "#ffeb3b"; // Yellow to signify a costly/hollow win
+            document.getElementById('end-title').style.color = "#ffeb3b"; 
         } else {
-            document.getElementById('end-title').style.color = "#f44336"; // Red for losses
+            document.getElementById('end-title').style.color = "#f44336"; 
         }
     }
 

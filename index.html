@@ -120,10 +120,9 @@
     let publicSupport = 100;
     let crossoverPoint = 0; 
     let phase = 1;
-    let enemySpawnRate = 60;
+    let enemySpawnRate = 45; // Starts faster
     let frameCount = 0;
 
-    // Expanded Trivia Data based on "Approaches to Fighting"[cite: 1]
     const questions = [
         {
             q: "Who served as the U.S. Secretary of Defense and was known as the chief architect of the Vietnam War?[cite: 1]",
@@ -176,23 +175,24 @@
         timeRemaining--;
         updateUI();
         
-        let replacementRate = phase === 3 ? 4 : 2; 
+        // Brutal Attrition drain: The enemy replaces troops aggressively[cite: 1]
+        let replacementRate = phase === 3 ? 6 : 3; 
         crossoverPoint = Math.max(0, crossoverPoint - replacementRate);
 
         if (timeRemaining === 80) {
             phase = 2;
             document.getElementById('phase-text').innerText = "Phase 2: Westmoreland's Attrition. Troops scaling to 500,000.[cite: 1]";
-            player.fireRate = 5; enemySpawnRate = 20;
+            player.fireRate = 5; enemySpawnRate = 12; // Swarms increase drastically
         } else if (timeRemaining === 40) {
             phase = 3;
             document.getElementById('phase-text').innerText = "Phase 3: The Tet Offensive! They are accepting massive casualties![cite: 1]";
-            enemySpawnRate = 5; document.getElementById('phase-text').style.color = "#f44336";
+            enemySpawnRate = 3; // Absolute bullet hell
+            document.getElementById('phase-text').style.color = "#f44336";
         }
 
-        // Increased Intel Crate Spawn Rate
         if ([100, 80, 60, 40, 20].includes(timeRemaining)) spawnCrate();
 
-        if (timeRemaining <= 0) endGame("Costly Stalemate", "Time expired. The strategy of attrition resulted in a costly stalemate.[cite: 1]");
+        if (timeRemaining <= 0) endGame("Costly Stalemate", "Time expired. The strategy of attrition resulted in a costly stalemate. The U.S. greatly lost support for the war.[cite: 1]");
     }, 1000);
 
     function updateUI() {
@@ -218,7 +218,9 @@
         else if (side === 1) { ex = canvas.width + 30; ey = Math.random() * canvas.height; } 
         else if (side === 2) { ex = Math.random() * canvas.width; ey = canvas.height + 30; } 
         else { ex = -30; ey = Math.random() * canvas.height; }
-        enemies.push({ x: ex, y: ey, radius: 12, speed: Math.random() * 1.5 + 1.5, hp: phase === 3 ? 2 : 1 });
+        
+        // Enemies are faster and take 3 hits in Phase 3
+        enemies.push({ x: ex, y: ey, radius: 12, speed: Math.random() * 2 + 1.5, hp: phase === 3 ? 3 : 1 });
     }
 
     function spawnCrate() {
@@ -229,7 +231,6 @@
         isPaused = true;
         currentQuestionObj = questions[Math.floor(Math.random() * questions.length)];
         
-        // Reset UI elements
         document.getElementById('question-text').style.display = 'block';
         document.getElementById('ans0').style.display = 'block';
         document.getElementById('ans1').style.display = 'block';
@@ -245,7 +246,6 @@
     }
 
     window.answerTrivia = function(index) {
-        // Hide question and buttons
         document.getElementById('question-text').style.display = 'none';
         document.getElementById('ans0').style.display = 'none';
         document.getElementById('ans1').style.display = 'none';
@@ -268,7 +268,6 @@
             descEl.innerText = "Bad Intel! You lost 20% Public Support.";
         }
 
-        // Wait 2 seconds to show result before resuming
         setTimeout(() => {
             document.getElementById('trivia-ui').style.display = 'none';
             isPaused = false;
@@ -278,12 +277,12 @@
                     let angle = i * 10 * (Math.PI/180);
                     bullets.push({ x: player.x, y: player.y, radius: 8, speed: 10, dx: Math.cos(angle), dy: Math.sin(angle), life: 200 });
                 }
-                crossoverPoint += 10; 
+                crossoverPoint += 15; 
             } else {
                 publicSupport -= 20;
                 updateUI();
                 createExplosion(player.x, player.y, '#f44336');
-                if (publicSupport <= 0) endGame("Public Support Collapsed", "Bad intel and massive casualties caused the U.S. to lose support for the war.[cite: 1]");
+                if (publicSupport <= 0) endGame("Public Support Collapsed", "Bad intel and massive casualties caused the U.S. to greatly lose support for the war.[cite: 1]");
             }
             crate = null;
         }, 2000);
@@ -310,7 +309,6 @@
             if (mouse.isDown) shoot();
             if (player.cooldown > 0) player.cooldown--;
 
-            // Draw Crate
             if (crate) {
                 ctx.fillStyle = '#ffeb3b';
                 ctx.fillRect(crate.x - 15, crate.y - 15, 30, 30);
@@ -322,11 +320,9 @@
                 }
             }
 
-            // Draw Player
             ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
             ctx.fillStyle = player.color; ctx.fill(); ctx.closePath();
 
-            // Draw Aim Line
             ctx.beginPath();
             ctx.moveTo(player.x, player.y);
             ctx.lineTo(player.x + Math.cos(Math.atan2(mouse.y - player.y, mouse.x - player.x)) * 40, 
@@ -335,7 +331,6 @@
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Manage Bullets
             for (let i = bullets.length - 1; i >= 0; i--) {
                 let b = bullets[i];
                 b.x += b.dx * b.speed; b.y += b.dy * b.speed; b.life--;
@@ -346,7 +341,6 @@
 
             if (frameCount % enemySpawnRate === 0) spawnEnemy();
 
-            // Manage Enemies
             for (let i = enemies.length - 1; i >= 0; i--) {
                 let e = enemies[i];
                 let angle = Math.atan2(player.y - e.y, player.x - e.x);
@@ -357,7 +351,7 @@
 
                 let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
                 if (distToPlayer - player.radius - e.radius < 0) {
-                    publicSupport -= 0.5; 
+                    publicSupport -= 1.5; // Harsher penalty
                     createExplosion(e.x, e.y, '#f44336');
                     enemies.splice(i, 1); updateUI();
                     if (publicSupport <= 0) endGame("Public Support Collapsed", "The massive amount of casualties caused the U.S. to greatly lose support for the war.[cite: 1]");
@@ -372,14 +366,15 @@
                         if (e.hp <= 0) {
                             createExplosion(e.x, e.y, '#ff9800');
                             crossoverPoint += 1.5; enemies.splice(i, 1); updateUI();
-                            if(crossoverPoint >= 100) endGame("Crossover Point Reached", "You took down enemy forces faster than they could be replaced.[cite: 1]");
+                            
+                            // The Pyrrhic Victory condition 
+                            if(crossoverPoint >= 100) endGame("Pyrrhic Victory", "You reached the Crossover Point, but at what cost? The massive amount of casualties caused the public to condemn the U.S. and greatly lose support for the war.[cite: 1]");
                             break;
                         }
                     }
                 }
             }
 
-            // Particles
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 p.x += p.dx; p.y += p.dy; p.life--;
@@ -396,7 +391,13 @@
         document.getElementById('game-over').style.display = 'block';
         document.getElementById('end-title').innerText = title;
         document.getElementById('end-desc').innerText = desc;
-        document.getElementById('end-title').style.color = title === "Crossover Point Reached" ? "#4caf50" : "#f44336";
+        
+        // Colorize the ending title appropriately
+        if(title === "Pyrrhic Victory") {
+            document.getElementById('end-title').style.color = "#ffeb3b"; // Yellow to signify a costly/hollow win
+        } else {
+            document.getElementById('end-title').style.color = "#f44336"; // Red for losses
+        }
     }
 
     gameLoop();

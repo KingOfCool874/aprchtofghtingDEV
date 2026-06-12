@@ -145,7 +145,7 @@
     let isPaused = false;
     let timeRemaining = 120;
     
-    // Difficulty Modifiers
+    // Difficulty Modifiers Base Variables
     let difficulty = 'normal';
     let publicSupport = 100;
     let enemySpawnRate = 25; 
@@ -154,6 +154,11 @@
     let enemySpeedMult = 1.0;
     let penaltyHit = 3.5;
     let penaltyTrivia = 30;
+    
+    // Crossover Specific Variables
+    let crossoverPerKill = 0.5;
+    let crossoverDecayBase = 4;
+    let crossoverDecayTet = 8;
 
     let crossoverPoint = 0; 
     let phase = 1;
@@ -189,33 +194,45 @@
         document.getElementById('ui-layer').style.display = 'block';
 
         if (difficulty === 'easy') {
-            publicSupport = 150;
-            baseFireRate = 5;
-            enemySpawnRate = 35;
-            enemySpeedMult = 0.7;
-            penaltyHit = 2;
-            penaltyTrivia = 15;
+            publicSupport = 200;
+            baseFireRate = 4;
+            enemySpawnRate = 60;
+            enemySpeedMult = 0.5;
+            penaltyHit = 0.5;
+            penaltyTrivia = 0;
+            crossoverPerKill = 2.0; // Fills up massively per kill
+            crossoverDecayBase = 1; // Barely decays over time
+            crossoverDecayTet = 2;
         } else if (difficulty === 'normal') {
-            publicSupport = 100;
-            baseFireRate = 10;
-            enemySpawnRate = 25;
-            enemySpeedMult = 1.0;
-            penaltyHit = 3.5;
-            penaltyTrivia = 30;
+            publicSupport = 150;
+            baseFireRate = 7;
+            enemySpawnRate = 40;
+            enemySpeedMult = 0.7;
+            penaltyHit = 1.5;
+            penaltyTrivia = 10;
+            crossoverPerKill = 1.0; 
+            crossoverDecayBase = 2;
+            crossoverDecayTet = 4;
         } else if (difficulty === 'hard') {
-            publicSupport = 80;
-            baseFireRate = 15;
-            enemySpawnRate = 15;
-            enemySpeedMult = 1.3;
-            penaltyHit = 7;
-            penaltyTrivia = 45;
-        } else if (difficulty === 'realism') {
-            publicSupport = 50;
-            baseFireRate = 20; 
-            enemySpawnRate = 10; 
-            enemySpeedMult = 1.6;
-            penaltyHit = 15; 
-            penaltyTrivia = 50; 
+            publicSupport = 120;
+            baseFireRate = 8;
+            enemySpawnRate = 30;
+            enemySpeedMult = 0.85;
+            penaltyHit = 2.5;
+            penaltyTrivia = 20;
+            crossoverPerKill = 0.75;
+            crossoverDecayBase = 3;
+            crossoverDecayTet = 6;
+        } else if (difficulty === 'realism') { // This is equivalent to the original code constraints
+            publicSupport = 100;
+            baseFireRate = 10; 
+            enemySpawnRate = 25; 
+            enemySpeedMult = 1.0;
+            penaltyHit = 3.5; 
+            penaltyTrivia = 30; 
+            crossoverPerKill = 0.5;
+            crossoverDecayBase = 4;
+            crossoverDecayTet = 8;
         }
 
         document.getElementById('intel-penalty-text').innerText = `-${penaltyTrivia}% Public Support`;
@@ -301,22 +318,22 @@
         timeRemaining--;
         updateUI();
         
-        let replacementRate = phase === 3 ? 8 : 4; 
+        let replacementRate = phase === 3 ? crossoverDecayTet : crossoverDecayBase; 
         crossoverPoint = Math.max(0, crossoverPoint - replacementRate);
 
         if (timeRemaining === 80) {
             phase = 2;
             document.getElementById('phase-text').innerText = "Phase 2: Westmoreland's Attrition. Troops scaling to 500,000.";
             
-            baseFireRate = difficulty === 'realism' ? 12 : (difficulty === 'hard' ? 8 : (difficulty === 'easy' ? 3 : 5));
+            baseFireRate = difficulty === 'realism' ? 5 : (difficulty === 'hard' ? 4 : (difficulty === 'normal' ? 3 : 2));
             playerPieces.forEach(p => p.fireRate = baseFireRate);
             
-            enemySpawnRate = difficulty === 'realism' ? 5 : (difficulty === 'hard' ? 7 : (difficulty === 'easy' ? 12 : 8)); 
+            enemySpawnRate = difficulty === 'realism' ? 8 : (difficulty === 'hard' ? 12 : (difficulty === 'normal' ? 18 : 30)); 
         } else if (timeRemaining === 40) {
             phase = 3;
             document.getElementById('phase-text').innerText = "Phase 3: The Tet Offensive! They are accepting massive casualties!";
             
-            enemySpawnRate = difficulty === 'realism' ? 1 : (difficulty === 'hard' ? 2 : (difficulty === 'easy' ? 4 : 2)); 
+            enemySpawnRate = difficulty === 'realism' ? 2 : (difficulty === 'hard' ? 4 : (difficulty === 'normal' ? 8 : 15)); 
             document.getElementById('phase-text').style.color = "#f44336";
         }
 
@@ -415,7 +432,7 @@
                         bullets.push({ x: p.x, y: p.y, radius: 8, speed: 10, dx: Math.cos(angle), dy: Math.sin(angle), life: 200 });
                     }
                 });
-                crossoverPoint += 10; 
+                crossoverPoint += (10 * (crossoverPerKill * 2)); 
             } else {
                 publicSupport -= penaltyTrivia; 
                 updateUI();
@@ -578,7 +595,7 @@
                         e.hp--; bullets.splice(j, 1);
                         if (e.hp <= 0) {
                             createExplosion(e.x, e.y, '#ff9800');
-                            crossoverPoint += 0.5; 
+                            crossoverPoint += crossoverPerKill; // Value tied to difficulty setting
                             enemies.splice(i, 1); updateUI();
                             break;
                         }

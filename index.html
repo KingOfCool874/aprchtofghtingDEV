@@ -11,7 +11,7 @@
         }
         canvas { display: block; }
         
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; padding: 20px; box-sizing: border-box; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; padding: 20px; box-sizing: border-box; display: none; }
         .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
         .stat-box { background: rgba(0,0,0,0.7); padding: 15px; border: 2px solid #444; border-radius: 8px; }
         h1, h2, h3 { margin: 0; padding: 0; }
@@ -30,6 +30,11 @@
             background: rgba(0,0,0,0.95); padding: 40px; border: 4px solid #fff;
             text-align: center; display: none; pointer-events: auto; border-radius: 10px; z-index: 10;
         }
+        
+        #start-menu h1 { color: #ffeb3b; font-size: 2.5rem; margin-bottom: 10px; }
+        #start-menu p { font-size: 1.2rem; margin-bottom: 20px; color: #aaa;}
+        .diff-btn { width: 100%; margin-bottom: 15px; display: block; }
+        
         #game-over h1 { font-size: 3rem; margin-bottom: 20px; }
         #game-over p { font-size: 1.2rem; max-width: 500px; margin-bottom: 30px; line-height: 1.5; }
         
@@ -56,6 +61,7 @@
             transition: transform 0.1s;
         }
         button.action-btn:active { transform: scale(0.95); }
+        button.action-btn:hover { filter: brightness(1.1); }
 
         /* Dev Menu Specific Styles */
         #dev-menu { border-color: #e040fb; width: 400px; }
@@ -66,6 +72,15 @@
 <body>
 
 <canvas id="gameCanvas"></canvas>
+
+<div id="start-menu" class="modal" style="display: block;">
+    <h1>THE ATTRITION ENGINE</h1>
+    <p>Select Deployment Difficulty</p>
+    <button class="action-btn diff-btn" style="background:#4caf50;" onclick="startGame('easy')">Easy</button>
+    <button class="action-btn diff-btn" style="background:#ffeb3b;" onclick="startGame('normal')">Normal</button>
+    <button class="action-btn diff-btn" style="background:#ff9800;" onclick="startGame('hard')">Hard</button>
+    <button class="action-btn diff-btn" style="background:#f44336; color:white;" onclick="startGame('realism')">Realism</button>
+</div>
 
 <div id="ui-layer">
     <div class="hud-top">
@@ -91,7 +106,7 @@
 
 <div id="trivia-ui" class="modal">
     <h2>INTEL DROP</h2>
-    <div class="stakes">Reward: <span class="good">360° Nova Blast</span> | Penalty: <span class="bad">-30% Public Support</span></div>
+    <div class="stakes">Reward: <span class="good">360° Nova Blast</span> | Penalty: <span class="bad" id="intel-penalty-text">-30% Public Support</span></div>
     
     <div id="question-text">Question goes here?</div>
     <button class="ans-btn" onclick="answerTrivia(0)" id="ans0">Answer 1</button>
@@ -125,22 +140,28 @@
     let keys = {};
     let mouse = { x: canvas.width/2, y: canvas.height/2, isDown: false };
     
+    let isGameStarted = false;
     let isGameOver = false;
     let isPaused = false;
     let timeRemaining = 120;
+    
+    // Difficulty Modifiers
+    let difficulty = 'normal';
     let publicSupport = 100;
+    let enemySpawnRate = 25; 
+    let baseFireRate = 10;
+    let baseSpeed = 5;
+    let enemySpeedMult = 1.0;
+    let penaltyHit = 3.5;
+    let penaltyTrivia = 30;
+
     let crossoverPoint = 0; 
     let phase = 1;
-    let enemySpawnRate = 25; 
     let frameCount = 0;
 
     // Secret code tracker
     let secretCode = "";
     let devMenuOpen = false;
-
-    // Base engine values inherited by splits
-    let baseFireRate = 10;
-    let baseSpeed = 5;
 
     const questions = [
         { q: "Who served as the U.S. Secretary of Defense and was known as the chief architect of the Vietnam War?", answers: ["Dean Rusk", "Robert McNamara", "William Westmoreland"], correct: 1 },
@@ -162,19 +183,57 @@
     const enemies = [];
     const particles = [];
 
+    window.startGame = function(level) {
+        difficulty = level;
+        document.getElementById('start-menu').style.display = 'none';
+        document.getElementById('ui-layer').style.display = 'block';
+
+        if (difficulty === 'easy') {
+            publicSupport = 150;
+            baseFireRate = 5;
+            enemySpawnRate = 35;
+            enemySpeedMult = 0.7;
+            penaltyHit = 2;
+            penaltyTrivia = 15;
+        } else if (difficulty === 'normal') {
+            publicSupport = 100;
+            baseFireRate = 10;
+            enemySpawnRate = 25;
+            enemySpeedMult = 1.0;
+            penaltyHit = 3.5;
+            penaltyTrivia = 30;
+        } else if (difficulty === 'hard') {
+            publicSupport = 80;
+            baseFireRate = 15;
+            enemySpawnRate = 15;
+            enemySpeedMult = 1.3;
+            penaltyHit = 7;
+            penaltyTrivia = 45;
+        } else if (difficulty === 'realism') {
+            publicSupport = 50;
+            baseFireRate = 20; 
+            enemySpawnRate = 10; 
+            enemySpeedMult = 1.6;
+            penaltyHit = 15; 
+            penaltyTrivia = 50; 
+        }
+
+        document.getElementById('intel-penalty-text').innerText = `-${penaltyTrivia}% Public Support`;
+        playerPieces.forEach(p => { p.fireRate = baseFireRate; });
+        updateUI();
+        isGameStarted = true;
+    }
+
     window.addEventListener('keydown', e => {
         keys[e.key.toLowerCase()] = true;
 
-        // Agar.io Splitting Code (Limits max active parts to 8)
-        if (e.key === ' ' && !isPaused && !isGameOver) {
+        if (e.key === ' ' && !isPaused && !isGameOver && isGameStarted) {
             splitPlayer();
         }
 
         // DEV MENU LOGIC
         secretCode += e.key;
-        if (secretCode.length > 4) {
-            secretCode = secretCode.substring(1);
-        }
+        if (secretCode.length > 4) secretCode = secretCode.substring(1);
         if (secretCode === "4175") {
             toggleDevMenu();
             secretCode = ""; 
@@ -187,32 +246,22 @@
     window.addEventListener('mouseup', () => mouse.isDown = false);
     window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 
-    // Agar.io Split Action Execution
     function splitPlayer() {
         if (playerPieces.length >= 8) return;
         let newPieces = [];
 
         playerPieces.forEach(p => {
-            // Only split if cell has enough mass (radius)
             if (p.radius >= 14 && playerPieces.length + newPieces.length < 8) {
                 let oldR = p.radius;
-                // Halve the mass/area using geometry formula (r_new = r * 0.707)
                 p.radius = oldR * 0.7071;
 
                 let angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
                 let launchForce = 16;
 
                 newPieces.push({
-                    x: p.x,
-                    y: p.y,
-                    radius: oldR * 0.7071,
-                    speed: baseSpeed,
-                    color: p.color,
-                    cooldown: p.cooldown,
-                    fireRate: baseFireRate,
-                    vx: Math.cos(angle) * launchForce,
-                    vy: Math.sin(angle) * launchForce,
-                    mergeTimer: 300 // 5-second cooldown timeline before merge is possible
+                    x: p.x, y: p.y, radius: oldR * 0.7071, speed: baseSpeed, color: p.color,
+                    cooldown: p.cooldown, fireRate: baseFireRate, vx: Math.cos(angle) * launchForce,
+                    vy: Math.sin(angle) * launchForce, mergeTimer: 300 
                 });
 
                 p.mergeTimer = 300;
@@ -221,7 +270,6 @@
         playerPieces = playerPieces.concat(newPieces);
     }
 
-    // DEV MENU FUNCTIONS
     window.toggleDevMenu = function() {
         if (isGameOver) return; 
         devMenuOpen = !devMenuOpen;
@@ -249,7 +297,7 @@
     };
 
     setInterval(() => {
-        if(isGameOver || isPaused) return;
+        if(isGameOver || isPaused || !isGameStarted) return;
         timeRemaining--;
         updateUI();
         
@@ -259,13 +307,16 @@
         if (timeRemaining === 80) {
             phase = 2;
             document.getElementById('phase-text').innerText = "Phase 2: Westmoreland's Attrition. Troops scaling to 500,000.";
-            baseFireRate = 5;
-            playerPieces.forEach(p => p.fireRate = 5);
-            enemySpawnRate = 8; 
+            
+            baseFireRate = difficulty === 'realism' ? 12 : (difficulty === 'hard' ? 8 : (difficulty === 'easy' ? 3 : 5));
+            playerPieces.forEach(p => p.fireRate = baseFireRate);
+            
+            enemySpawnRate = difficulty === 'realism' ? 5 : (difficulty === 'hard' ? 7 : (difficulty === 'easy' ? 12 : 8)); 
         } else if (timeRemaining === 40) {
             phase = 3;
             document.getElementById('phase-text').innerText = "Phase 3: The Tet Offensive! They are accepting massive casualties!";
-            enemySpawnRate = 2; 
+            
+            enemySpawnRate = difficulty === 'realism' ? 1 : (difficulty === 'hard' ? 2 : (difficulty === 'easy' ? 4 : 2)); 
             document.getElementById('phase-text').style.color = "#f44336";
         }
 
@@ -304,7 +355,8 @@
         if (phase === 2) hpVal = 2;
         if (phase === 3) hpVal = 4;
 
-        enemies.push({ x: ex, y: ey, radius: 12, speed: Math.random() * 2 + 1.8, hp: hpVal });
+        let spd = (Math.random() * 2 + 1.8) * enemySpeedMult;
+        enemies.push({ x: ex, y: ey, radius: 12, speed: spd, hp: hpVal });
     }
 
     function spawnCrate() {
@@ -349,7 +401,7 @@
         } else {
             resultEl.style.color = '#f44336';
             resultEl.innerText = "WRONG!";
-            descEl.innerText = "Bad Intel! You lost 30% Public Support.";
+            descEl.innerText = `Bad Intel! You lost ${penaltyTrivia}% Public Support.`;
         }
 
         setTimeout(() => {
@@ -357,7 +409,6 @@
             isPaused = false;
             
             if (isCorrect) {
-                // Modified to run multi-cell explosions across all separated split nodes
                 playerPieces.forEach(p => {
                     for(let i=0; i < 36; i++) {
                         let angle = i * 10 * (Math.PI/180);
@@ -366,7 +417,7 @@
                 });
                 crossoverPoint += 10; 
             } else {
-                publicSupport -= 30; 
+                publicSupport -= penaltyTrivia; 
                 updateUI();
                 playerPieces.forEach(p => createExplosion(p.x, p.y, '#f44336'));
                 if (publicSupport <= 0) endGame("Public Support Collapsed", "Bad intel and massive casualties caused the U.S. to greatly lose support for the war.");
@@ -382,7 +433,10 @@
     }
 
     function gameLoop() {
-        if (isGameOver) return;
+        if (!isGameStarted || isGameOver) {
+            if (!isGameStarted) requestAnimationFrame(gameLoop);
+            return;
+        }
 
         if (crossoverPoint >= 100) {
             endGame("Pyrrhic Victory", "You reached the Crossover Point, but at what cost? The massive amount of casualties caused the public to condemn the U.S. and greatly lose support for the war.");
@@ -394,41 +448,32 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             frameCount++;
 
-            // Integrated Directional Vector Mapping for both WASD and Keyboard Arrow Keys
-            let moveX = 0;
-            let moveY = 0;
+            let moveX = 0; let moveY = 0;
             if (keys['w'] || keys['arrowup']) moveY -= 1;
             if (keys['s'] || keys['arrowdown']) moveY += 1;
             if (keys['a'] || keys['arrowleft']) moveX -= 1;
             if (keys['d'] || keys['arrowright']) moveX += 1;
 
-            // Normalize vector velocity so diagonal travel isn't faster
             if (moveX !== 0 && moveY !== 0) {
-                moveX *= 0.7071;
-                moveY *= 0.7071;
+                moveX *= 0.7071; moveY *= 0.7071;
             }
 
-            // Update Merge Cooldown Timers
             playerPieces.forEach(p => {
                 if (p.mergeTimer > 0) p.mergeTimer--;
             });
 
-            // Agar.io cell-to-cell interaction mapping loop
             for (let i = 0; i < playerPieces.length; i++) {
                 for (let j = i + 1; j < playerPieces.length; j++) {
-                    let p1 = playerPieces[i];
-                    let p2 = playerPieces[j];
+                    let p1 = playerPieces[i]; let p2 = playerPieces[j];
                     let dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
                     let minDist = p1.radius + p2.radius;
 
                     if (dist < minDist) {
-                        // Recombination step if split timers have hit zero
                         if (p1.mergeTimer === 0 && p2.mergeTimer === 0) {
                             p1.radius = Math.sqrt(p1.radius * p1.radius + p2.radius * p2.radius);
                             playerPieces.splice(j, 1);
                             j--;
                         } else {
-                            // Fluid cell collision physics to push cells apart while unmerged
                             let overlap = minDist - dist;
                             let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
                             p1.x -= Math.cos(angle) * overlap * 0.5;
@@ -440,17 +485,14 @@
                 }
             }
 
-            // Apply movement matrix & decay split launch physics velocity friction
             playerPieces.forEach(p => {
                 p.x += moveX * p.speed + p.vx;
                 p.y += moveY * p.speed + p.vy;
 
-                p.vx *= 0.90; // Dampen launch friction properties
-                p.vy *= 0.90;
+                p.vx *= 0.90; p.vy *= 0.90;
                 if (Math.abs(p.vx) < 0.1) p.vx = 0;
                 if (Math.abs(p.vy) < 0.1) p.vy = 0;
 
-                // Restrict cells to active display boundaries
                 if (p.x < p.radius) p.x = p.radius;
                 if (p.x > canvas.width - p.radius) p.x = canvas.width - p.radius;
                 if (p.y < p.radius) p.y = p.radius;
@@ -467,7 +509,6 @@
                 ctx.fillStyle = '#000';
                 ctx.fillText("?", crate.x - 4, crate.y + 5);
                 
-                // Crate collection works with any active sub-cell
                 for (let p of playerPieces) {
                     if (Math.hypot(p.x - crate.x, p.y - crate.y) < p.radius + 15) {
                         triggerTrivia();
@@ -476,7 +517,6 @@
                 }
             }
 
-            // Render all active cells
             playerPieces.forEach(p => {
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
                 ctx.fillStyle = p.color; ctx.fill(); ctx.closePath();
@@ -503,15 +543,11 @@
             for (let i = enemies.length - 1; i >= 0; i--) {
                 let e = enemies[i];
                 
-                // Target the closest cell piece
                 let target = playerPieces[0];
                 let minDist = Infinity;
                 playerPieces.forEach(p => {
                     let d = Math.hypot(p.x - e.x, p.y - e.y);
-                    if (d < minDist) {
-                        minDist = d;
-                        target = p;
-                    }
+                    if (d < minDist) { minDist = d; target = p; }
                 });
 
                 let angle = Math.atan2(target.y - e.y, target.x - e.x);
@@ -524,7 +560,7 @@
                 for (let p of playerPieces) {
                     let distToPlayer = Math.hypot(p.x - e.x, p.y - e.y);
                     if (distToPlayer - p.radius - e.radius < 0) {
-                        publicSupport -= 3.5; 
+                        publicSupport -= penaltyHit; 
                         createExplosion(e.x, e.y, '#f44336');
                         enemies.splice(i, 1); updateUI();
                         if (publicSupport <= 0) endGame("Public Support Collapsed", "The massive amount of casualties caused the U.S. to greatly lose support for the war.");
@@ -563,6 +599,7 @@
 
     function endGame(title, desc) {
         isGameOver = true;
+        document.getElementById('ui-layer').style.display = 'none';
         document.getElementById('game-over').style.display = 'block';
         document.getElementById('end-title').innerText = title;
         document.getElementById('end-desc').innerText = desc;
